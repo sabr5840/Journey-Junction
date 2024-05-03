@@ -7,8 +7,9 @@ import { app, database, auth } from './firebase.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword, initializeAuth, getReactNativePersistence } from "firebase/auth";
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import { addDoc, collection } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 
-// Tjek om Firebase Authentication allerede er initialiseret
+
 if (!getAuth(app)) {
   if (Platform.OS === 'web') {
     auth = getAuth(app);
@@ -74,8 +75,7 @@ const Login = () => {
     <SafeAreaView style={styles.container}>
       <ImageBackground
         source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/background.png')}
-        style={styles.backgroundImage}
-      >
+        style={styles.backgroundImage}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardAvoidingView}>
           <View style={styles.topContainer}>
             <Image
@@ -118,12 +118,45 @@ const Login = () => {
 
 
 const Signup = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
+  const [enteredEmail, setEnteredEmail] = useState('');
+  const [enteredPassword, setEnteredPassword] = useState('');
+  const [enteredFullName, setEnteredFullName] = useState('');
+  const [userId, setUserId] = useState(null);
   const navigation = useNavigation();
 
+  useEffect(() =>{
+    const auth_ = getAuth()
+    const unsubscribe = onAuthStateChanged(auth_, (currentUser) => {
+      if (currentUser){
+        setUserId(currentUser.uid)
+      }else{
+        setUserId(null)
+      }
+    })
+    return () => unsubscribe()
+  },[])
+  
 
+  async function signup() {
+    try {
+      // Opret bruger med e-mail og adgangskode
+      const userCredential = await createUserWithEmailAndPassword(auth, enteredEmail, enteredPassword);
+      // Hent den nye brugers ID
+      const newUserId = userCredential.user.uid;
+      // Gem brugerens fulde navn i Firestore-databasen
+      await setDoc(doc(database, 'users', newUserId), {
+        fullName: enteredFullName,
+      });
+      // Indstil den nye brugers ID
+      setUserId(newUserId);
+  
+      // Naviger til Home-siden efter vellykket tilmelding
+      navigation.navigate('Home');
+    } catch (error) {
+      console.error("Error signing up:", error);
+    }
+  }
+  
 
   return (
     <SafeAreaView style={styles.container}>
@@ -142,27 +175,25 @@ const Signup = () => {
 
             <TextInput
               placeholder="Full name"
-              value={fullName}
-              onChangeText={setFullName}
-              secureTextEntry
+              value={enteredFullName}
+              onChangeText={setEnteredFullName}
               style={styles.inputField}
             />
 
             <TextInput
               placeholder="Email or phone"
-              value={email}
-              onChangeText={setEmail}
+              value={enteredEmail}
+              onChangeText={setEnteredEmail}
               style={styles.inputField}
             />
             <TextInput
               placeholder="Password"
-              value={password}
-              onChangeText={setPassword}
+              value={enteredPassword}
+              onChangeText={setEnteredPassword}
               secureTextEntry
               style={styles.inputField}
             />
-
-            <TouchableOpacity onPress={() => console.log('Log in')} style={styles.loginButton}>
+            <TouchableOpacity onPress={signup} style={styles.loginButton}>
               <Text style={styles.loginButtonText}>Sign up</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.signupButton}>
@@ -177,6 +208,7 @@ const Signup = () => {
   );
 };
 
+
 const Home = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
@@ -184,13 +216,22 @@ const Home = ({ navigation }) => {
         <View style={styles.topContainerS}>
           <Image source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/logo.png')} style={styles.logo} />
         </View>
-        <View style={styles.middleContainer}>
-          <Text style={styles.description}>
-            Hellloo honeyboo
-          </Text>
-        </View>
-        <View>
-        </View>
+        <View style={styles.indexContainer}>
+            <Text style={styles.indexTitle}>What is your purpose today?</Text>
+            <Text style={styles.indexDescription}>Looking for inspiration for your next vacation or are you looking to inspire others travels buds?</Text>
+
+            <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.signupButton}>
+              <Text style={styles.loginButtonText}>Sign up</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.signupButton}>
+              <Text style={styles.loginButtonText}>Hello</Text>
+            </TouchableOpacity>
+           
+      
+          
+   
+
+          </View>
       </ImageBackground>
     </SafeAreaView>
   );
@@ -218,11 +259,39 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  indexTitle: {
+    fontSize: 23,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    marginTop: -20,
+    color: '#656565',
+  },
+  indexDescription: {
+    fontSize: 15,
+    marginBottom: 16,
+    color: '#656565',
+  },
+  indexContainer: {
+    backgroundColor: 'rgba(215, 213, 213, 0.7)', 
+    borderRadius: 10,
+    padding: 16,
+    width: '90%',
+    alignSelf: 'center',
+    alignItems: 'center',
+    marginTop: 0,
+    marginBottom: 300,
+    paddingTop: 60,
+    paddingBottom: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { height: 5 },
+    elevation: 10,
+  },
   backgroundImage: {
     flex: 1,
     resizeMode: 'cover',
     marginTop: -85,
-
   },
   topContainer: {
     flex: 1,
@@ -231,7 +300,7 @@ const styles = StyleSheet.create({
     paddingTop: 20, 
     marginTop: 120,
   },
-    topContainerS: {
+  topContainerS: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
