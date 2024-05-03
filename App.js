@@ -1,18 +1,31 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, Image, TouchableOpacity, KeyboardAvoidingView, Platform, SafeAreaView, ImageBackground, AppRegistry } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, TextInput, Image, TouchableOpacity, KeyboardAvoidingView, Platform, SafeAreaView, ImageBackground, AppRegistry, Button } from 'react-native';
+import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { useNavigation } from '@react-navigation/native';
+import { StatusBar } from 'expo-status-bar';
+import { app, database, auth } from './firebase.js';
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword, initializeAuth, getReactNativePersistence } from "firebase/auth";
+import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
+import { addDoc, collection } from 'firebase/firestore';
 
+// Tjek om Firebase Authentication allerede er initialiseret
+if (!getAuth(app)) {
+  if (Platform.OS === 'web') {
+    auth = getAuth(app);
+  } else {
+    auth = initializeAuth(app, {
+      persistence: getReactNativePersistence(ReactNativeAsyncStorage)
+    });
+  }
+}
 
 const Stack = createStackNavigator();
-
 
 const JourneyJunctionScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <ImageBackground source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/background.png')} style={styles.backgroundImage}>
-        <View style={styles.topContainer}>
+        <View style={styles.topContainerS}>
           <Image source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/logo.png')} style={styles.logo} />
         </View>
         <View style={styles.middleContainer}>
@@ -36,11 +49,26 @@ const JourneyJunctionScreen = ({ navigation }) => {
 };
 
 const Login = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-
+  const [enteredEmail, setEnteredEmail] = useState('');
+  const [enteredPassword, setEnteredPassword] = useState('');
+  const [userId, setUserId] = useState(null); // Definér userId og setUserId
   const navigation = useNavigation();
 
+  async function login() {
+    try {
+      // Tjek om Firebase-appen er defineret
+      if (!app) {
+        throw new Error('Firebase app is not initialized');
+      }
+  
+      // Få adgang til Firebase Authentication og log ind
+      const userCredential = await signInWithEmailAndPassword(auth, enteredEmail, enteredPassword);
+      console.log("logged in " + userCredential.user.uid);
+      setUserId(userCredential.user.uid);
+    } catch (error) {
+      console.error("Error logging in:", error);
+    }
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -59,21 +87,21 @@ const Login = () => {
             <Text style={styles.loginTitle}>Log in</Text>
             <TextInput
               placeholder="Email or phone"
-              value={email}
-              onChangeText={setEmail}
+              value={enteredEmail}
+              onChangeText={setEnteredEmail}
               style={styles.inputField}
             />
             <TextInput
               placeholder="Password"
-              value={password}
-              onChangeText={setPassword}
+              value={enteredPassword}
+              onChangeText={setEnteredPassword}
               secureTextEntry
               style={styles.inputField}
             />
             <TouchableOpacity onPress={() => console.log('Forgot Password')}>
               <Text style={styles.forgotPasswordText}>Forgot password?</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => console.log('Log in')} style={styles.loginButton}>
+            <TouchableOpacity onPress={() => navigation.navigate('Home')} style={styles.loginButton}>
               <Text style={styles.loginButtonText}>Log in</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => navigation.navigate('Signup')} style={styles.signupButton}>
@@ -88,10 +116,13 @@ const Login = () => {
   );
 };
 
+
 const Signup = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const navigation = useNavigation();
+
 
 
   return (
@@ -134,13 +165,32 @@ const Signup = () => {
             <TouchableOpacity onPress={() => console.log('Log in')} style={styles.loginButton}>
               <Text style={styles.loginButtonText}>Sign up</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => console.log('Navigate to Sign Up')}>
+            <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.signupButton}>
               <Text style={styles.signUpText}>
                 Already have an account? <Text style={styles.signUpButtonText}>Press here</Text>
               </Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+      </ImageBackground>
+    </SafeAreaView>
+  );
+};
+
+const Home = ({ navigation }) => {
+  return (
+    <SafeAreaView style={styles.container}>
+      <ImageBackground source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/background.png')} style={styles.backgroundImage}>
+        <View style={styles.topContainerS}>
+          <Image source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/logo.png')} style={styles.logo} />
+        </View>
+        <View style={styles.middleContainer}>
+          <Text style={styles.description}>
+            Hellloo honeyboo
+          </Text>
+        </View>
+        <View>
+        </View>
       </ImageBackground>
     </SafeAreaView>
   );
@@ -157,11 +207,12 @@ const App = () => {
         <Stack.Screen name="JourneyJunction" component={JourneyJunctionScreen} />
         <Stack.Screen name="Login" component={Login} />
         <Stack.Screen name="Signup" component={Signup} />
-
+        <Stack.Screen name="Home" component={Home} />
       </Stack.Navigator>
     </NavigationContainer>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {
@@ -179,6 +230,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 20, 
     marginTop: 120,
+  },
+    topContainerS: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 20, 
+    marginTop: 7,
   },
   logo: {
     width: 350, 
