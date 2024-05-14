@@ -1,14 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TextInput, Image, TouchableOpacity, KeyboardAvoidingView, Platform, SafeAreaView, ImageBackground, AppRegistry, Button } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { SafeAreaView, StyleSheet, View, Text, Image, TouchableOpacity, TextInput, ImageBackground, Modal, KeyboardAvoidingView } from 'react-native';
+import MapView, { Marker } from 'react-native-maps';
+import { app, database, storage } from './firebase'; 
+import { collection, addDoc, deleteDoc, doc, updateDoc, query, getDocs, onSnapshot, setDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
-import { app, database, auth } from './firebase.js';
+import { auth } from './firebase.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword, initializeAuth, getReactNativePersistence } from "firebase/auth";
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
-import { addDoc, collection } from 'firebase/firestore';
-import { doc, setDoc } from 'firebase/firestore';
-
+import { Platform } from 'react-native';
+import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
 
 if (!getAuth(app)) {
   if (Platform.OS === 'web') {
@@ -20,23 +24,27 @@ if (!getAuth(app)) {
   }
 }
 
+const Header = () => {
+  return (
+    <View style={styles.topContainer}>
+      <Image source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/logo.png')} style={styles.logo} />
+    </View>
+  );
+};
+
 const Stack = createStackNavigator();
 
 const JourneyJunctionScreen = ({ navigation }) => {
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: 'white' }]}>
       <ImageBackground source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/background.png')} style={styles.backgroundImage}>
-        <View style={styles.topContainerS}>
-          <Image source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/logo.png')} style={styles.logo} />
-        </View>
-        <View style={styles.middleContainer}>
+        <Header> </Header>
           <Text style={styles.description}>
             Welcome to JourneyJunction, your new go-to mobile platform designed to transform the way you record,
             discover, and share your travel experiences. Whether you're a seasoned explorer or a casual tourist,
             JourneyJunction offers an enriching platform to document every step of your journey and connect with a
-            community of                       like-minded travelers.
+            community of                          like-minded travelers.
           </Text>
-        </View>
         <View style={styles.bottomContainer}>
         <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.button}>
         <Text style={styles.buttonText}>
@@ -57,32 +65,40 @@ const Login = () => {
 
   async function login() {
     try {
-      // Tjek om Firebase-appen er defineret
-      if (!app) {
-        throw new Error('Firebase app is not initialized');
-      }
-  
-      // Få adgang til Firebase Authentication og log ind
+      console.log("Attempting login...");
       const userCredential = await signInWithEmailAndPassword(auth, enteredEmail, enteredPassword);
-      console.log("logged in " + userCredential.user.uid);
-      setUserId(userCredential.user.uid);
+      if (userCredential) {
+        const userUID = userCredential.user.uid;
+        console.log("User authenticated successfully. UID:", userUID);
+        setUserId(userUID); // Update userId state
+  
+        // Check user ID for accessing Firestore
+        const currentUser = await getAuth().currentUser;
+        if (currentUser && currentUser.uid === userUID) {
+          console.log("User ID matches for accessing Firestore.");
+          // Proceed with navigation or other actions
+          navigation.navigate('Home'); // Example navigation
+        } else {
+          console.log("User ID does not match for accessing Firestore.");
+          // Handle mismatch error
+        }
+      }
     } catch (error) {
       console.error("Error logging in:", error);
     }
   }
+  
+  
+  
+  
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: 'white' }]}>
       <ImageBackground
         source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/background.png')}
         style={styles.backgroundImage}>
+        <Header> </Header>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardAvoidingView}>
-          <View style={styles.topContainer}>
-            <Image
-              source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/logo.png')}
-              style={styles.logo}
-            />
-          </View>
           <View style={styles.loginContainer}>
             <Text style={styles.loginTitle}>Log in</Text>
             <TextInput
@@ -101,7 +117,7 @@ const Login = () => {
             <TouchableOpacity onPress={() => console.log('Forgot Password')}>
               <Text style={styles.forgotPasswordText}>Forgot password?</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => navigation.navigate('Home')} style={styles.loginButton}>
+            <TouchableOpacity onPress={login} style={styles.loginButton}>
               <Text style={styles.loginButtonText}>Log in</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => navigation.navigate('Signup')} style={styles.signupButton}>
@@ -116,12 +132,13 @@ const Login = () => {
   );
 };
 
-
 const Signup = () => {
   const [enteredEmail, setEnteredEmail] = useState('');
   const [enteredPassword, setEnteredPassword] = useState('');
   const [enteredFullName, setEnteredFullName] = useState('');
   const [userId, setUserId] = useState(null);
+  const [emailInUse, setEmailInUse] = useState(false);
+
   const navigation = useNavigation();
 
   useEffect(() =>{
@@ -139,37 +156,41 @@ const Signup = () => {
 
   async function signup() {
     try {
-      // Opret bruger med e-mail og adgangskode
+      // Create user with email and password
       const userCredential = await createUserWithEmailAndPassword(auth, enteredEmail, enteredPassword);
-      // Hent den nye brugers ID
+      // Get the new user's ID
       const newUserId = userCredential.user.uid;
-      // Gem brugerens fulde navn i Firestore-databasen
+      // Save the user's full name in Firestore database
       await setDoc(doc(database, 'users', newUserId), {
         fullName: enteredFullName,
       });
-      // Indstil den nye brugers ID
+      // Set the new user's ID
       setUserId(newUserId);
   
-      // Naviger til Home-siden efter vellykket tilmelding
+      // Navigate to Home screen after successful signup
       navigation.navigate('Home');
     } catch (error) {
-      console.error("Error signing up:", error);
+      if (error.code === 'auth/email-already-in-use') {
+        console.error("Email already in use:", error.message);
+        // Provide feedback to the user, e.g., display an error message
+        alert("Email address is already in use. Please use a different email address.");
+      } else {
+        console.error("Error signing up:", error);
+        // Provide generic error message to the user
+        alert("An error occurred during sign up. Please try again later.");
+      }
     }
   }
   
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: 'white' }]}>
       <ImageBackground
         source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/background.png')}
         style={styles.backgroundImage}>
+         <Header> </Header>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardAvoidingView}>
-          <View style={styles.topContainer}>
-            <Image
-              source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/logo.png')}
-              style={styles.logo}
-            />
-          </View>
+
           <View style={styles.loginContainer}>
             <Text style={styles.loginTitle}>Sign up</Text>
 
@@ -208,10 +229,9 @@ const Signup = () => {
   );
 };
 
-
 const Home = ({ navigation }) => {
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: 'white' }]}>
       <ImageBackground source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/background.png')} style={styles.backgroundImage}>
         <View style={styles.topContainerS}>
           <Image source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/logo.png')} style={styles.logo} />
@@ -219,23 +239,201 @@ const Home = ({ navigation }) => {
         <View style={styles.indexContainer}>
             <Text style={styles.indexTitle}>What is your purpose today?</Text>
             <Text style={styles.indexDescription}>Looking for inspiration for your next vacation or are you looking to inspire others travels buds?</Text>
-
-            <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.signupButton}>
-              <Text style={styles.loginButtonText}>Sign up</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Inspire')} style={styles.loginButton}>
+            <Text style={styles.loginButtonText}>Inspire others</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.signupButton}>
-              <Text style={styles.loginButtonText}>Hello</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.loginButton}>
+              <Text style={styles.loginButtonText}>Travel inspiration</Text>
             </TouchableOpacity>
-           
-      
-          
-   
-
           </View>
       </ImageBackground>
     </SafeAreaView>
   );
 };
+
+const Inspire = () => {
+  const [markers, setMarkers] = useState([]);
+  const [region, setRegion] = useState({
+    latitude: 55,
+    longitude: 12,
+    latitudeDelta: 20,
+    longitudeDelta: 20
+  });
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedMarker, setSelectedMarker] = useState(null);
+
+  const mapRef = useRef(null);
+  const locationSub = useRef(null);
+
+  useEffect(() => {
+    // Make Firestore calls only if user is authenticated
+    if (auth.currentUser) {
+      const markersCollection = collection(database, 'markers');
+      const unsubscribe = onSnapshot(markersCollection, (querySnapshot) => {
+        const newMarkers = [];
+        querySnapshot.forEach((doc) => {
+          const { latitude, longitude, imageURL } = doc.data();
+          newMarkers.push({
+            coordinate: { latitude, longitude },
+            imageURL: imageURL,
+            key: doc.id,
+            title: "Great place"
+          });
+        });
+        setMarkers(newMarkers);
+      });
+
+      // Ensure proper cleanup
+      return () => {
+        unsubscribe();
+        if (locationSub.current) {
+          locationSub.current.remove();
+        }
+      };
+    } else {
+      // User is not authenticated, handle accordingly
+      console.log("User is not authenticated. Cannot access Firestore.");
+    }
+  }, []);
+
+  async function selectImage(location) {
+    try {
+      console.log("Selected location:", location); // Tilføj dette for at kontrollere placeringen
+
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 1,
+      });
+  
+      console.log("ImagePicker result:", result);
+  
+      if (!result.cancelled) {
+        const selectedImage = result.assets[0];
+        if (!selectedImage.uri) {
+          throw new Error("Selected image URI is undefined.");
+        }
+  
+        console.log("Selected image result:", selectedImage);
+  
+        // Upload image to Firebase Storage
+        uploadImage(selectedImage.uri, location);
+      }
+    } catch (error) {
+      console.error("Error selecting image:", error);
+      alert("There was an error selecting the image. Please try again later.");
+    }
+  }
+  
+
+  async function uploadImage(imageUri, location) {
+    try {
+      console.log("Location in uploadImage:", location); // Tilføj denne linje til at kontrollere, om 'location' er defineret korrekt
+
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+      const imageName = new Date().getTime() + '.jpg';
+      const storageRef = ref(storage, 'images/' + imageName);
+
+      // Upload image to Firebase Storage
+      await uploadBytes(storageRef, blob);
+
+      // Get the download URL for the uploaded image
+      const downloadURL = await getDownloadURL(storageRef);
+
+      // Save the GPS location and download URL in Firestore
+      const markersCollection = collection(database, 'markers');
+      await addDoc(markersCollection, {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        imageURL: downloadURL
+      });
+
+      console.log("Image uploaded successfully.");
+    } catch (error) {
+      console.error("Error uploading image: ", error);
+      alert("There was an error uploading the image. Please try again later.");
+    }
+  }
+
+  function addMarker(data) {
+    const { latitude, longitude } = data.nativeEvent.coordinate;
+    const markerId = Date.now().toString(); // Generate a unique ID for the marker
+    const newMarker = {
+      coordinate: { latitude, longitude },
+      key: markerId,
+      id: markerId,
+      title: "Great place"
+    };
+    setMarkers([...markers, newMarker]);
+    console.log("Location in addMarker:", { latitude, longitude }); // Tilføj denne linje til at kontrollere placeringen
+
+
+    // Call selectImage with the location of the new marker
+    selectImage({ latitude, longitude });
+  }
+
+  function onMarkerPressed(imageURL, coordinate) {
+    setSelectedImage(imageURL);
+    setSelectedMarker(coordinate);
+    setModalVisible(true);
+  }
+
+
+
+  return (
+    <View style={[styles.container, { backgroundColor: 'white' }]}>
+      <Header />
+      <MapView
+        ref={mapRef}
+        style={styles.map}
+        region={region}
+        onLongPress={addMarker}
+      >
+        {markers.map((marker, index) => (
+          <Marker
+            coordinate={marker.coordinate}
+            key={marker.key} // Brug markørens nøgle som dens unikke identifikator
+            title={marker.title}
+            onPress={() => onMarkerPressed(marker.imageURL, marker.coordinate)}
+          />
+        ))}
+      </MapView>
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => {
+          setModalVisible(false);
+        }}
+      >
+        <View style={styles.modalView}>
+         {selectedMarker && (
+            <View style={styles.coordinatesContainer}>
+              <Text style={styles.coordinatesText}>Latitude: {selectedMarker.latitude.toFixed(6)}</Text>
+              <Text style={styles.coordinatesText}>Longitude: {selectedMarker.longitude.toFixed(6)}</Text>
+            </View>
+          )}
+          <Image
+            source={{ uri: selectedImage }}
+            style={styles.image}
+          />
+          
+          <TouchableOpacity
+            style={styles.closeButton} // Justeret bredden på knappen
+            onPress={() => setModalVisible(false)}
+          >
+            <Text style={styles.closeButtonText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+    </View>
+  );
+};
+
+
 
 const App = () => {
   return (
@@ -249,13 +447,62 @@ const App = () => {
         <Stack.Screen name="Login" component={Login} />
         <Stack.Screen name="Signup" component={Signup} />
         <Stack.Screen name="Home" component={Home} />
+        <Stack.Screen name="Inspire" component={Inspire} />
       </Stack.Navigator>
     </NavigationContainer>
   );
 };
 
-
 const styles = StyleSheet.create({
+  map:{
+    width: '100%',
+    height: '80%'
+  },
+
+  modalView: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+ 
+  closeButton: {
+    position: 'center',
+    backgroundColor: '#DDDDDD',
+    padding: 10,
+    borderRadius: 5,
+    marginBottom: 5, 
+    width: 350,
+    marginTop: 3,
+    elevation: 5, 
+  },
+  closeButtonText: {
+    fontSize: 16,
+    color: 'black',
+    textAlign: 'center',
+  },
+  image: {
+    width: 350,
+    height: 350,
+    resizeMode: 'contain',
+  },
+
+  coordinatesContainer: {
+    position: 'center',
+    backgroundColor: '#DDDDDD',
+    padding: 10,
+    borderRadius: 5,
+    marginBottom: 5, 
+    width: 350,
+    marginTop: 3,
+    elevation: 5, 
+  },
+  coordinatesText: {
+    fontSize: 16,
+    color: 'black',
+    textAlign: 'center',
+  },
+
   container: {
     flex: 1,
   },
@@ -298,7 +545,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingTop: 20, 
-    marginTop: 120,
+    marginTop: 10,
+  
   },
   topContainerS: {
     flex: 1,
@@ -310,20 +558,18 @@ const styles = StyleSheet.create({
   logo: {
     width: 350, 
     height: 350, 
-    marginTop: 5,
     resizeMode: 'contain',
   },
-  middleContainer: {
+
+  description: {
+    fontSize: 16,
+    padding: 20,
+    fontStyle: 'italic', 
     flex: 2, 
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
-  },
-  description: {
-    fontSize: 16,
-    padding: 20,
-    marginTop: -350,
-    fontStyle: 'italic', 
+    marginTop: -80,
   },
   bottomContainer: {
     flex: 1,
@@ -349,7 +595,8 @@ const styles = StyleSheet.create({
     width: '90%',
     alignSelf: 'center',
     alignItems: 'center',
-    marginTop: 100,
+    marginTop: -5,
+    marginBottom: 300,
     paddingTop: 60,
     paddingBottom: 20,
     shadowColor: '#000',
@@ -381,7 +628,7 @@ const styles = StyleSheet.create({
   loginButton: {
     width: '100%',
     paddingVertical: 12,
-    backgroundColor: '#000',
+    backgroundColor: 'grey',
     borderRadius: 5,
     alignItems: 'center',
     marginTop: 10,
@@ -402,11 +649,9 @@ const styles = StyleSheet.create({
 
   forgotPasswordText: {
     color: 'white',
-  }
+  },
 
-
-  
+ 
 });
 
-AppRegistry.registerComponent('main', () => App);
 export default App;
