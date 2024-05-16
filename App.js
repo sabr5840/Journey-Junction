@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { SafeAreaView, StyleSheet, View, Text, Image, TouchableOpacity, TextInput, ImageBackground, Modal, KeyboardAvoidingView, FlatList } from 'react-native';
+import { SafeAreaView, StyleSheet, View, Text, Image, TouchableOpacity, TextInput, ImageBackground, Modal, KeyboardAvoidingView, FlatList, ScrollView, Dimensions } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { app, database, storage } from './firebase';
 import { collection, addDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { auth } from './firebase.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword, initializeAuth, getReactNativePersistence } from "firebase/auth";
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
@@ -14,8 +13,8 @@ import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 
-
 const Stack = createStackNavigator();
+let auth;
 
 if (!getAuth(app)) {
   if (Platform.OS === 'web') {
@@ -25,6 +24,8 @@ if (!getAuth(app)) {
       persistence: getReactNativePersistence(ReactNativeAsyncStorage)
     });
   }
+} else {
+  auth = getAuth(app);
 }
 
 const Header = () => {
@@ -266,7 +267,7 @@ const Home = ({ navigation }) => {
   );
 };
 
-const Inspire = () => {
+const Inspire = ({ navigation }) => {
   const [markers, setMarkers] = useState([]);
   const [region, setRegion] = useState({
     latitude: 55,
@@ -275,9 +276,6 @@ const Inspire = () => {
     longitudeDelta: 20
   });
   const [selectedImages, setSelectedImages] = useState([]);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [selectedMarker, setSelectedMarker] = useState(null);
-
   const mapRef = useRef(null);
 
   useEffect(() => {
@@ -396,9 +394,7 @@ const Inspire = () => {
   }
 
   function onMarkerPressed(imageURLs, coordinate) {
-    setSelectedImages(imageURLs);
-    setSelectedMarker(coordinate);
-    setModalVisible(true);
+    navigation.navigate('ImageGalleryScreen', { imageURLs, coordinate });
   }
 
   const getUserLocation = async () => {
@@ -443,43 +439,34 @@ const Inspire = () => {
       <TouchableOpacity onPress={getUserLocation} style={styles.locationbutton}>
         <Text style={styles.locationbuttonText}>Track My Location</Text>
       </TouchableOpacity>
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => {
-          setModalVisible(false);
-        }}
-      >
-        <View style={styles.modalView}>
-          {selectedMarker && (
-            <View style={styles.coordinatesContainer}>
-              <Text style={styles.coordinatesText}>Latitude: {selectedMarker.latitude.toFixed(6)}</Text>
-              <Text style={styles.coordinatesText}>Longitude: {selectedMarker.longitude.toFixed(6)}</Text>
-            </View>
-          )}
-          <FlatList
-            data={selectedImages}
-            keyExtractor={(item, index) => index.toString()}
-            renderItem={({ item }) => (
-              <Image
-                source={{ uri: item }}
-                style={styles.image}
-              />
-            )}
-            horizontal
-          />
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={() => setModalVisible(false)}
-          >
-            <Text style={styles.closeButtonText}>Close</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
     </View>
   );
 };
+
+const ImageGalleryScreen = ({ route }) => {
+  const { imageURLs, coordinate } = route.params;
+
+  return (
+  
+    <SafeAreaView style={styles.galleryContainer}>
+      <Header />
+      <View style={styles.coordinatesContainer}>
+        <Text style={styles.coordinatesText}>Latitude: {coordinate.latitude.toFixed(6)}</Text>
+        <Text style={styles.coordinatesText}>Longitude: {coordinate.longitude.toFixed(6)}</Text>
+      </View>
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        {imageURLs.map((url, index) => (
+          <Image
+            key={index}
+            source={{ uri: url }}
+            style={styles.image}
+          />
+        ))}
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
+
 
 const App = () => {
   return (
@@ -495,6 +482,7 @@ const App = () => {
         <Stack.Screen name="Signup" component={Signup} />
         <Stack.Screen name="Home" component={Home} />
         <Stack.Screen name="Inspire" component={Inspire} />
+        <Stack.Screen name="ImageGalleryScreen" component={ImageGalleryScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -527,81 +515,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  modalContainer: {
+  galleryContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContent: {
     backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 20,
-    alignItems: 'center',
-    width: '80%',
-  },
-  modalText: {
-    fontSize: 18,
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  modalButton: {
-    backgroundColor: 'lightgray',
-    padding: -10,
-    borderRadius: 5,
-    marginBottom: 20,
-    width: 200,
-    height: 50,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  buttonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
+    marginTop: -150,
 
-  modalView: {
-    flex: 1,
-    justifyContent: 'center',
+  },
+  scrollContainer: {
+    flexGrow: 1,
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    paddingBottom: 20,
   },
-
-  closeButton: {
-    backgroundColor: '#DDDDDD',
-    padding: 10,
-    borderRadius: 5,
-    marginBottom: 5,
-    width: 350,
-    marginTop: 3,
-    elevation: 5,
-  },
-  closeButtonText: {
-    fontSize: 16,
-    color: 'black',
-    textAlign: 'center',
-  },
-  image: {
-    width: 350,
-    height: 350,
-    resizeMode: 'contain',
-  },
-
   coordinatesContainer: {
     backgroundColor: '#DDDDDD',
     padding: 10,
     borderRadius: 5,
-    marginBottom: 5,
-    width: 350,
-    marginTop: 3,
-    elevation: 5,
+    marginHorizontal: 10,
+    alignItems: 'center',
+    marginVertical: 20, // Øget afstand mellem headeren og koordinaterne
+    marginTop: 250,
   },
   coordinatesText: {
     fontSize: 16,
     color: 'black',
     textAlign: 'center',
   },
-
+  image: {
+    width: Dimensions.get('window').width - 20,
+    height: 300,
+    resizeMode: 'cover',
+    marginVertical: 10,
+  },
   container: {
     flex: 1,
   },
@@ -749,5 +693,6 @@ const styles = StyleSheet.create({
     color: 'white',
   },
 });
+
 
 export default App;
