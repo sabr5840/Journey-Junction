@@ -14,6 +14,8 @@ import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 
+const Stack = createStackNavigator();
+
 if (!getAuth(app)) {
   if (Platform.OS === 'web') {
     auth = getAuth(app);
@@ -25,20 +27,55 @@ if (!getAuth(app)) {
 }
 
 const Header = () => {
+  const [modalVisible, setModalVisible] = useState(false);
+  const navigation = useNavigation();
+
+  const handleDoubleTap = () => {
+    setModalVisible(true);
+  };
+
+  const closeModal = () => {
+    setModalVisible(false);
+  };
+
+  async function handleSignOut(){
+    await signOut(auth)
+    navigation.navigate('JourneyJunctionScreen');
+    closeModal();
+  };
+
   return (
     <View style={styles.topContainer}>
-      <Image source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/logo.png')} style={styles.logo} />
+      <TouchableOpacity onPress={handleDoubleTap}>
+        <Image source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/logo.png')} style={styles.logo} />
+      </TouchableOpacity>
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalText}>Do you want to sign out?</Text>
+            <TouchableOpacity onPress={handleSignOut} style={styles.modalButton}>
+              <Text style={styles.buttonText}>Yes, sign out</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={closeModal} style={styles.modalButton}>
+              <Text style={styles.buttonText}>Chancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
-
-const Stack = createStackNavigator();
 
 const JourneyJunctionScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: 'white' }]}>
       <ImageBackground source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/background.png')} style={styles.backgroundImage}>
-        <Header> </Header>
+      <Header />
           <Text style={styles.description}>
             Welcome to JourneyJunction, your new go-to mobile platform designed to transform the way you record,
             discover, and share your travel experiences. Whether you're a seasoned explorer or a casual tourist,
@@ -233,9 +270,7 @@ const Home = ({ navigation }) => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: 'white' }]}>
       <ImageBackground source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/background.png')} style={styles.backgroundImage}>
-        <View style={styles.topContainerS}>
-          <Image source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/logo.png')} style={styles.logo} />
-        </View>
+        <Header> </Header>
         <View style={styles.indexContainer}>
             <Text style={styles.indexTitle}>What is your purpose today?</Text>
             <Text style={styles.indexDescription}>Looking for inspiration for your next vacation or are you looking to inspire others travels buds?</Text>
@@ -327,53 +362,61 @@ const Inspire = () => {
     }
   }
   
-
   async function uploadImage(imageUri, location) {
     try {
-      console.log("Location in uploadImage:", location); // Tilføj denne linje til at kontrollere, om 'location' er defineret korrekt
-
+      console.log("Location in uploadImage:", location); // Log location to check if it's defined correctly
+  
+      // Fetch image data from URI
       const response = await fetch(imageUri);
       const blob = await response.blob();
+  
+      // Generate a unique image name using timestamp
       const imageName = new Date().getTime() + '.jpg';
+  
+      // Create a reference to the Firebase Storage location
       const storageRef = ref(storage, 'images/' + imageName);
-
+  
       // Upload image to Firebase Storage
+      console.log("Uploading image to Firebase Storage...");
       await uploadBytes(storageRef, blob);
-
+  
       // Get the download URL for the uploaded image
+      console.log("Getting download URL for the uploaded image...");
       const downloadURL = await getDownloadURL(storageRef);
-
+  
       // Save the GPS location and download URL in Firestore
+      console.log("Saving location and download URL in Firestore...");
       const markersCollection = collection(database, 'markers');
       await addDoc(markersCollection, {
         latitude: location.latitude,
         longitude: location.longitude,
         imageURL: downloadURL
       });
-
+  
       console.log("Image uploaded successfully.");
     } catch (error) {
       console.error("Error uploading image: ", error);
       alert("There was an error uploading the image. Please try again later.");
     }
   }
+  
 
   function addMarker(data) {
     const { latitude, longitude } = data.nativeEvent.coordinate;
-    const markerId = Date.now().toString(); // Generate a unique ID for the marker
+    const markerId = Date.now().toString(); // Generer et unikt ID for markøren
     const newMarker = {
       coordinate: { latitude, longitude },
-      key: markerId,
-      id: markerId,
+      key: markerId, // Brug det genererede ID som markørens nøgle
+      id: markerId, // Brug det genererede ID også som markørens ID
       title: "Great place"
     };
     setMarkers([...markers, newMarker]);
-    console.log("Location in addMarker:", { latitude, longitude }); // Tilføj denne linje til at kontrollere placeringen
-
-
-    // Call selectImage with the location of the new marker
-    selectImage({ latitude, longitude });
+    
+    // Kald selectImage med lokationen for den nye markør
+    console.log("Marker location:", { latitude, longitude });
+    selectImage({ latitude, longitude }); // Overfør lokationen som et objekt
   }
+  
 
   function onMarkerPressed(imageURL, coordinate) {
     setSelectedImage(imageURL);
@@ -381,8 +424,27 @@ const Inspire = () => {
     setModalVisible(true);
   }
 
-
-
+  const getUserLocation = async () => {
+    try {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        alert('Permission to access location was denied');
+        return;
+      }
+  
+      let location = await Location.getCurrentPositionAsync({});
+      setRegion({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        latitudeDelta: 0.1,
+        longitudeDelta: 0.1,
+      });
+    } catch (error) {
+      console.error('Error getting current location:', error);
+      alert('Error getting current location. Please try again later.');
+    }
+  };
+  
   return (
     <View style={[styles.container, { backgroundColor: 'white' }]}>
       <Header />
@@ -395,12 +457,15 @@ const Inspire = () => {
         {markers.map((marker, index) => (
           <Marker
             coordinate={marker.coordinate}
-            key={marker.key} // Brug markørens nøgle som dens unikke identifikator
+            key={marker.key}
             title={marker.title}
             onPress={() => onMarkerPressed(marker.imageURL, marker.coordinate)}
           />
         ))}
       </MapView>
+      <TouchableOpacity onPress={getUserLocation} style={styles.locationbutton}>
+        <Text style={styles.locationbuttonText}>Track My Location</Text>
+      </TouchableOpacity>
       <Modal
         animationType="slide"
         transparent={true}
@@ -410,7 +475,7 @@ const Inspire = () => {
         }}
       >
         <View style={styles.modalView}>
-         {selectedMarker && (
+          {selectedMarker && (
             <View style={styles.coordinatesContainer}>
               <Text style={styles.coordinatesText}>Latitude: {selectedMarker.latitude.toFixed(6)}</Text>
               <Text style={styles.coordinatesText}>Longitude: {selectedMarker.longitude.toFixed(6)}</Text>
@@ -422,7 +487,7 @@ const Inspire = () => {
           />
           
           <TouchableOpacity
-            style={styles.closeButton} // Justeret bredden på knappen
+            style={styles.closeButton}
             onPress={() => setModalVisible(false)}
           >
             <Text style={styles.closeButtonText}>Close</Text>
@@ -431,19 +496,19 @@ const Inspire = () => {
       </Modal>
     </View>
   );
+  
 };
-
-
 
 const App = () => {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="JourneyJunction"
+        initialRouteName="JourneyJunctionScreen"
         screenOptions={{
           headerShown: false, 
-        }}>
-        <Stack.Screen name="JourneyJunction" component={JourneyJunctionScreen} />
+        }}
+      >
+        <Stack.Screen name="JourneyJunctionScreen" component={JourneyJunctionScreen} />
         <Stack.Screen name="Login" component={Login} />
         <Stack.Screen name="Signup" component={Signup} />
         <Stack.Screen name="Home" component={Home} />
@@ -456,7 +521,64 @@ const App = () => {
 const styles = StyleSheet.create({
   map:{
     width: '100%',
-    height: '80%'
+    height: '74%',
+    marginBottom: 55,
+    marginTop: -9,
+  },
+
+  locationbutton: {
+    backgroundColor: '#D3D3D3',
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 5,
+    alignItems: 'center',
+    position: 'absolute',
+    bottom: 20,
+    marginBottom: 10,
+    alignSelf: 'center', 
+
+  },
+
+  locationbuttonText:{
+    color: "white",
+    marginBottom: 10,
+    fontWeight: 'bold',
+    alignItems: 'center',
+  },
+
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 20,
+    alignItems: 'center',
+    width: '80%',
+  },
+  modalText: {
+    fontSize: 18,
+    marginBottom: 20,
+    textAlign: 'center',
+    
+  },
+  modalButton: {
+    backgroundColor: 'lightgray',
+    padding: -10,
+    borderRadius: 5,
+    marginBottom: 20,
+    width: 200,
+    height: 50,
+    alignItems: 'center',
+    marginTop: 10,
+  
+  },
+  buttonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 
   modalView: {
