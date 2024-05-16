@@ -279,6 +279,7 @@ const Inspire = ({ navigation }) => {
   const [descriptionModalVisible, setDescriptionModalVisible] = useState(false);
   const [currentLocation, setCurrentLocation] = useState(null);
   const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('');
   const mapRef = useRef(null);
 
   useEffect(() => {
@@ -287,11 +288,12 @@ const Inspire = ({ navigation }) => {
       const unsubscribe = onSnapshot(markersCollection, (querySnapshot) => {
         const newMarkers = [];
         querySnapshot.forEach((doc) => {
-          const { latitude, longitude, imageURLs, description } = doc.data();
+          const { latitude, longitude, imageURLs, description, category } = doc.data();
           newMarkers.push({
             coordinate: { latitude, longitude },
             imageURLs: imageURLs,
             description: description,
+            category: category,
             key: doc.id,
             title: 'Great place',
           });
@@ -356,7 +358,7 @@ const Inspire = ({ navigation }) => {
     }
   }
 
-  async function uploadImages(imageUris, location, description) {
+  async function uploadImages(imageUris, location, description, category) {
     try {
       console.log('Starting image upload...');
       const uploadPromises = imageUris.map(async (imageUri, index) => {
@@ -379,6 +381,7 @@ const Inspire = ({ navigation }) => {
         longitude: location.longitude,
         imageURLs: imageUrls,
         description: description,
+        category: category,
       });
 
       console.log('Images uploaded and Firestore updated successfully.');
@@ -424,10 +427,11 @@ const Inspire = ({ navigation }) => {
     }
   };
 
-  const handleDescriptionSubmit = () => {
+  const handleDescriptionSubmit = (selectedCategory) => {
+    setCategory(selectedCategory);
     setDescriptionModalVisible(false);
     if (currentLocation && selectedImages.length > 0) {
-      uploadImages(selectedImages, currentLocation, description);
+      uploadImages(selectedImages, currentLocation, description, selectedCategory);
       Keyboard.dismiss();
     }
   };
@@ -441,6 +445,12 @@ const Inspire = ({ navigation }) => {
             coordinate={marker.coordinate}
             key={marker.key}
             title={marker.title}
+            pinColor={
+              marker.category === 'hotel' ? 'blue' :
+              marker.category === 'restaurant' ? 'red' :
+              marker.category === 'nature' ? 'green' :
+              'orange'
+            }
             onPress={() => onMarkerPressed(marker.imageURLs, marker.coordinate, marker.description)}
           />
         ))}
@@ -467,9 +477,20 @@ const Inspire = ({ navigation }) => {
                   multiline
                 />
               </ScrollView>
-              <TouchableOpacity onPress={handleDescriptionSubmit} style={styles.modalButton}>
-                <Text style={styles.buttonText}>Submit</Text>
-              </TouchableOpacity>
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity onPress={() => handleDescriptionSubmit('hotel')} style={styles.categoryButton}>
+                  <Text style={styles.buttonTextC}>Submit as Hotel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleDescriptionSubmit('restaurant')} style={styles.categoryButton}>
+                  <Text style={styles.buttonTextC}>Submit as Restaurant</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleDescriptionSubmit('activity')} style={styles.categoryButton}>
+                  <Text style={styles.buttonTextC}>Submit as Activity</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleDescriptionSubmit('nature')} style={styles.categoryButton}>
+                  <Text style={styles.buttonTextC}>Submit as Nature Site</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </TouchableWithoutFeedback>
@@ -565,12 +586,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9f9f9',
     marginBottom: 10,
   },
-
   modalContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Mørk baggrund for modal overlay
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalContent: {
     width: '90%',
@@ -602,18 +622,35 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
   },
-
+  buttonTextC: {
+    color: 'white',
+    fontWeight: 'bold',
+    width: '100%'
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  categoryButton: {
+    backgroundColor: 'grey',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 5,
+    alignItems: 'center',
+    marginVertical: 5,
+    width: '48%',
+  },
   descriptionText:{
     marginTop: 20,
   },
-
   descriptionTextImage: {
     fontSize: 16,
     color: 'black',
     textAlign: 'center',
     marginVertical: 10,
   },
-
   locationbutton: {
     backgroundColor: '#D3D3D3',
     paddingVertical: 12,
@@ -625,14 +662,12 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     alignSelf: 'center',
   },
-
   locationbuttonText: {
     color: "white",
     marginBottom: 10,
     fontWeight: 'bold',
     alignItems: 'center',
   },
-
   galleryContainer: {
     flex: 1,
     backgroundColor: 'white',
@@ -649,7 +684,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     marginHorizontal: 10,
     alignItems: 'center',
-    marginVertical: 20, // Øget afstand mellem headeren og koordinaterne
+    marginVertical: 20,
     marginTop: 250,
   },
   coordinatesText: {
@@ -658,7 +693,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: 'bold',
     width: '80%',
-
   },
   image: {
     width: Dimensions.get('window').width - 20,
@@ -722,7 +756,6 @@ const styles = StyleSheet.create({
     height: 350,
     resizeMode: 'contain',
   },
-
   description: {
     fontSize: 16,
     padding: 20,
@@ -745,7 +778,6 @@ const styles = StyleSheet.create({
     marginBottom: 120,
     fontStyle: 'italic',
   },
-
   boldText: {
     fontWeight: 'bold',
     color: '#000',
@@ -804,15 +836,12 @@ const styles = StyleSheet.create({
     marginTop: 12,
     color: '#2a2a2a',
   },
-
   signUpText: {
     color: 'white',
   },
-
   forgotPasswordText: {
     color: 'white',
   },
 });
-
 
 export default App;
