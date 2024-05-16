@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { SafeAreaView, StyleSheet, View, Text, Image, TouchableOpacity, TextInput, ImageBackground, Modal, KeyboardAvoidingView, FlatList, ScrollView, Dimensions } from 'react-native';
+import { SafeAreaView, StyleSheet, View, Text, Image, TouchableOpacity, TouchableWithoutFeedback, TextInput, ImageBackground, Modal, KeyboardAvoidingView, FlatList, ScrollView, Dimensions, Keyboard } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { app, database, storage } from './firebase';
 import { collection, addDoc, onSnapshot, setDoc } from 'firebase/firestore';
@@ -273,9 +273,12 @@ const Inspire = ({ navigation }) => {
     latitude: 55,
     longitude: 12,
     latitudeDelta: 20,
-    longitudeDelta: 20
+    longitudeDelta: 20,
   });
   const [selectedImages, setSelectedImages] = useState([]);
+  const [descriptionModalVisible, setDescriptionModalVisible] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState(null);
+  const [description, setDescription] = useState('');
   const mapRef = useRef(null);
 
   useEffect(() => {
@@ -284,12 +287,13 @@ const Inspire = ({ navigation }) => {
       const unsubscribe = onSnapshot(markersCollection, (querySnapshot) => {
         const newMarkers = [];
         querySnapshot.forEach((doc) => {
-          const { latitude, longitude, imageURLs } = doc.data();
+          const { latitude, longitude, imageURLs, description } = doc.data();
           newMarkers.push({
             coordinate: { latitude, longitude },
             imageURLs: imageURLs,
+            description: description,
             key: doc.id,
-            title: "Great place"
+            title: 'Great place',
           });
         });
         setMarkers(newMarkers);
@@ -299,37 +303,38 @@ const Inspire = ({ navigation }) => {
         unsubscribe();
       };
     } else {
-      console.log("User is not authenticated. Cannot access Firestore.");
+      console.log('User is not authenticated. Cannot access Firestore.');
     }
   }, []);
 
   async function selectImages(location) {
     try {
-      console.log("Opening image picker...");
+      console.log('Opening image picker...');
       let result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsMultipleSelection: true,
         quality: 1,
       });
 
-      console.log("ImagePicker result:", result);
+      console.log('ImagePicker result:', result);
       if (!result.canceled) {
-        const selectedImages = result.assets.map(asset => asset.uri);
-        console.log("Selected images:", selectedImages);
+        const selectedImages = result.assets.map((asset) => asset.uri);
+        console.log('Selected images:', selectedImages);
         setSelectedImages(selectedImages);
-        await uploadImages(selectedImages, location);
+        setCurrentLocation(location);
+        setDescriptionModalVisible(true);
       }
     } catch (error) {
-      console.error("Error selecting images:", error);
-      alert("There was an error selecting the images. Please try again later.");
+      console.error('Error selecting images:', error);
+      alert('There was an error selecting the images. Please try again later.');
     }
   }
 
   async function resizeImage(imageUri) {
     const manipResult = await ImageManipulator.manipulateAsync(
       imageUri,
-      [{ resize: { width: 1000 } }], // Ændrer bredden til 1000 pixels, justér efter behov
-      { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG } // Komprimer billedet og gem som JPEG
+      [{ resize: { width: 1000 } }],
+      { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
     );
     return manipResult.uri;
   }
@@ -346,14 +351,14 @@ const Inspire = ({ navigation }) => {
         return downloadURL;
       } catch (error) {
         console.error(`Attempt ${attempt} failed:`, error);
-        if (attempt === retries) throw error; // Throw error after max retries
+        if (attempt === retries) throw error;
       }
     }
   }
 
-  async function uploadImages(imageUris, location) {
+  async function uploadImages(imageUris, location, description) {
     try {
-      console.log("Starting image upload...");
+      console.log('Starting image upload...');
       const uploadPromises = imageUris.map(async (imageUri, index) => {
         try {
           console.log(`Resizing image ${index + 1}...`);
@@ -362,23 +367,24 @@ const Inspire = ({ navigation }) => {
           return await uploadWithRetry(resizedUri);
         } catch (uploadError) {
           console.error(`Error uploading image ${index + 1}:`, uploadError);
-          throw uploadError; // Propagate the error to be caught in the outer try...catch
+          throw uploadError;
         }
       });
 
       const imageUrls = await Promise.all(uploadPromises);
-      console.log("All images uploaded:", imageUrls);
+      console.log('All images uploaded:', imageUrls);
       const markersCollection = collection(database, 'markers');
       await addDoc(markersCollection, {
         latitude: location.latitude,
         longitude: location.longitude,
-        imageURLs: imageUrls
+        imageURLs: imageUrls,
+        description: description,
       });
 
-      console.log("Images uploaded and Firestore updated successfully.");
+      console.log('Images uploaded and Firestore updated successfully.');
     } catch (error) {
-      console.error("Error uploading images:", error);
-      alert("There was an error uploading the images. Please try again later.");
+      console.error('Error uploading images:', error);
+      alert('There was an error uploading the images. Please try again later.');
     }
   }
 
@@ -387,14 +393,14 @@ const Inspire = ({ navigation }) => {
     const newMarker = {
       coordinate: { latitude, longitude },
       key: Date.now().toString(),
-      title: "Great place"
+      title: 'Great place',
     };
     setMarkers([...markers, newMarker]);
     selectImages({ latitude, longitude });
   }
 
-  function onMarkerPressed(imageURLs, coordinate) {
-    navigation.navigate('ImageGalleryScreen', { imageURLs, coordinate });
+  function onMarkerPressed(imageURLs, coordinate, description) {
+    navigation.navigate('ImageGalleryScreen', { imageURLs, coordinate, description });
   }
 
   const getUserLocation = async () => {
@@ -418,41 +424,84 @@ const Inspire = ({ navigation }) => {
     }
   };
 
+  const handleDescriptionSubmit = () => {
+    setDescriptionModalVisible(false);
+    if (currentLocation && selectedImages.length > 0) {
+      uploadImages(selectedImages, currentLocation, description);
+      Keyboard.dismiss();
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: 'white' }]}>
       <Header />
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        region={region}
-        onLongPress={addMarker}
-      >
+      <MapView ref={mapRef} style={styles.map} region={region} onLongPress={addMarker}>
         {markers.map((marker, index) => (
           <Marker
             coordinate={marker.coordinate}
             key={marker.key}
             title={marker.title}
-            onPress={() => onMarkerPressed(marker.imageURLs, marker.coordinate)}
+            onPress={() => onMarkerPressed(marker.imageURLs, marker.coordinate, marker.description)}
           />
         ))}
       </MapView>
       <TouchableOpacity onPress={getUserLocation} style={styles.locationbutton}>
         <Text style={styles.locationbuttonText}>Track My Location</Text>
       </TouchableOpacity>
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={descriptionModalVisible}
+        onRequestClose={() => setDescriptionModalVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalText}>Tell a bit about your adventure</Text>
+              <ScrollView contentContainerStyle={styles.scrollContainerModal}>
+                <TextInput
+                  placeholder='Describe here'
+                  value={description}
+                  onChangeText={setDescription}
+                  style={styles.inputFieldImage}
+                  multiline
+                />
+              </ScrollView>
+              <TouchableOpacity onPress={handleDescriptionSubmit} style={styles.modalButton}>
+                <Text style={styles.buttonText}>Submit</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </View>
   );
 };
 
+
 const ImageGalleryScreen = ({ route }) => {
-  const { imageURLs, coordinate } = route.params;
+  const { imageURLs = [], coordinate, description } = route.params;
+
+  // Ensure coordinate and description are not null or undefined
+  if (!coordinate || !description) {
+    return (
+      <SafeAreaView style={styles.galleryContainer}>
+        <Header />
+        <View style={styles.coordinatesContainer}>
+          <Text style={styles.coordinatesText}>Invalid coordinates or description</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
-  
     <SafeAreaView style={styles.galleryContainer}>
       <Header />
       <View style={styles.coordinatesContainer}>
         <Text style={styles.coordinatesText}>Latitude: {coordinate.latitude.toFixed(6)}</Text>
         <Text style={styles.coordinatesText}>Longitude: {coordinate.longitude.toFixed(6)}</Text>
+
+        <Text style={styles.descriptionText}>{description}</Text>
       </View>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         {imageURLs.map((url, index) => (
@@ -466,7 +515,6 @@ const ImageGalleryScreen = ({ route }) => {
     </SafeAreaView>
   );
 };
-
 
 const App = () => {
   return (
@@ -495,6 +543,65 @@ const styles = StyleSheet.create({
     marginBottom: 55,
     marginTop: -9,
   },
+  inputFieldImage:{
+    width: 300,
+    height: 300,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 5,
+    backgroundColor: '#f9f9f9',
+    marginBottom: 10,
+  },
+
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Mørk baggrund for modal overlay
+  },
+  modalContent: {
+    width: '90%',
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    shadowOffset: { height: 2 },
+    elevation: 5,
+  },
+  modalText: {
+    fontSize: 18,
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  modalButton: {
+    backgroundColor: 'lightgrey',
+    padding: 1,
+    borderRadius: 5,
+    marginTop: 10,
+    width: 300,
+    height: 60,
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+
+  descriptionText:{
+    marginTop: 20,
+
+  },
+
+  descriptionTextImage: {
+    fontSize: 16,
+    color: 'black',
+    textAlign: 'center',
+    marginVertical: 10,
+  },
 
   locationbutton: {
     backgroundColor: '#D3D3D3',
@@ -519,7 +626,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'white',
     marginTop: -150,
-
   },
   scrollContainer: {
     flexGrow: 1,
