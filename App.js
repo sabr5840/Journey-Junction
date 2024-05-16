@@ -125,10 +125,6 @@ const Login = () => {
     }
   }
   
-  
-  
-  
-
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: 'white' }]}>
       <ImageBackground
@@ -364,28 +360,19 @@ const Inspire = () => {
   
   async function uploadImage(imageUri, location) {
     try {
-      console.log("Location in uploadImage:", location); // Log location to check if it's defined correctly
-  
-      // Fetch image data from URI
       const response = await fetch(imageUri);
       const blob = await response.blob();
   
-      // Generate a unique image name using timestamp
       const imageName = new Date().getTime() + '.jpg';
   
-      // Create a reference to the Firebase Storage location
       const storageRef = ref(storage, 'images/' + imageName);
+      console.log("Storage reference:", storageRef);
   
-      // Upload image to Firebase Storage
-      console.log("Uploading image to Firebase Storage...");
       await uploadBytes(storageRef, blob);
   
-      // Get the download URL for the uploaded image
-      console.log("Getting download URL for the uploaded image...");
       const downloadURL = await getDownloadURL(storageRef);
+      console.log("Download URL:", downloadURL);
   
-      // Save the GPS location and download URL in Firestore
-      console.log("Saving location and download URL in Firestore...");
       const markersCollection = collection(database, 'markers');
       await addDoc(markersCollection, {
         latitude: location.latitude,
@@ -399,6 +386,8 @@ const Inspire = () => {
       alert("There was an error uploading the image. Please try again later.");
     }
   }
+  
+  
   
 
   function addMarker(data) {
