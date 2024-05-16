@@ -478,29 +478,41 @@ const Inspire = ({ navigation }) => {
   );
 };
 
-
 const ImageGalleryScreen = ({ route }) => {
   const { imageURLs = [], coordinate, description } = route.params;
+  const [address, setAddress] = useState(null);
+  const navigation = useNavigation();
 
-  // Ensure coordinate and description are not null or undefined
-  if (!coordinate || !description) {
-    return (
-      <SafeAreaView style={styles.galleryContainer}>
-        <Header />
-        <View style={styles.coordinatesContainer}>
-          <Text style={styles.coordinatesText}>Invalid coordinates or description</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  useEffect(() => {
+    const fetchAddress = async () => {
+      try {
+        let [result] = await Location.reverseGeocodeAsync({
+          latitude: coordinate.latitude,
+          longitude: coordinate.longitude
+        });
+        setAddress(result);
+      } catch (error) {
+        console.error('Error fetching address:', error);
+      }
+    };
+
+    fetchAddress();
+  }, [coordinate]);
 
   return (
     <SafeAreaView style={styles.galleryContainer}>
       <Header />
       <View style={styles.coordinatesContainer}>
-        <Text style={styles.coordinatesText}>Latitude: {coordinate.latitude.toFixed(6)}</Text>
-        <Text style={styles.coordinatesText}>Longitude: {coordinate.longitude.toFixed(6)}</Text>
-
+        {address ? (
+          <>
+            <Text style={styles.coordinatesText}>{address.street}, {address.city}, {address.region}, {address.postalCode}, {address.country}</Text>
+          </>
+        ) : (
+          <>
+            <Text style={styles.coordinatesText}>Latitude: {coordinate.latitude.toFixed(6)}</Text>
+            <Text style={styles.coordinatesText}>Longitude: {coordinate.longitude.toFixed(6)}</Text>
+          </>
+        )}
         <Text style={styles.descriptionText}>{description}</Text>
       </View>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
@@ -593,7 +605,6 @@ const styles = StyleSheet.create({
 
   descriptionText:{
     marginTop: 20,
-
   },
 
   descriptionTextImage: {
@@ -645,6 +656,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'black',
     textAlign: 'center',
+    fontWeight: 'bold',
+    width: '80%',
+
   },
   image: {
     width: Dimensions.get('window').width - 20,
