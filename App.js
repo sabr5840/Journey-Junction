@@ -12,6 +12,8 @@ import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import FontAwesome from 'react-native-vector-icons/FontAwesome'; // Import FontAwesome
+
 
 const Stack = createStackNavigator();
 let auth;
@@ -280,7 +282,9 @@ const Inspire = ({ navigation }) => {
   const [currentLocation, setCurrentLocation] = useState(null);
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
+  const [userLocation, setUserLocation] = useState(null); // State to store user location
   const mapRef = useRef(null);
+  const auth = getAuth();
 
   useEffect(() => {
     if (auth.currentUser) {
@@ -309,19 +313,43 @@ const Inspire = ({ navigation }) => {
     }
   }, []);
 
+  useEffect(() => {
+    const startTracking = async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        alert('Permission to access location was denied');
+        return;
+      }
+
+      Location.watchPositionAsync({
+        accuracy: Location.Accuracy.High,
+        timeInterval: 10000, // Update every 10 seconds
+        distanceInterval: 10, // Update every 10 meters
+      }, (location) => {
+        const { latitude, longitude } = location.coords;
+        setUserLocation({ latitude, longitude });
+        setRegion({
+          latitude,
+          longitude,
+          latitudeDelta: 0.1,
+          longitudeDelta: 0.1,
+        });
+      });
+    };
+
+    startTracking();
+  }, []);
+
   async function selectImages(location) {
     try {
-      console.log('Opening image picker...');
       let result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsMultipleSelection: true,
         quality: 1,
       });
 
-      console.log('ImagePicker result:', result);
       if (!result.canceled) {
         const selectedImages = result.assets.map((asset) => asset.uri);
-        console.log('Selected images:', selectedImages);
         setSelectedImages(selectedImages);
         setCurrentLocation(location);
         setDescriptionModalVisible(true);
@@ -360,12 +388,9 @@ const Inspire = ({ navigation }) => {
 
   async function uploadImages(imageUris, location, description, category) {
     try {
-      console.log('Starting image upload...');
       const uploadPromises = imageUris.map(async (imageUri, index) => {
         try {
-          console.log(`Resizing image ${index + 1}...`);
           const resizedUri = await resizeImage(imageUri);
-          console.log(`Uploading image ${index + 1}...`);
           return await uploadWithRetry(resizedUri);
         } catch (uploadError) {
           console.error(`Error uploading image ${index + 1}:`, uploadError);
@@ -374,7 +399,6 @@ const Inspire = ({ navigation }) => {
       });
 
       const imageUrls = await Promise.all(uploadPromises);
-      console.log('All images uploaded:', imageUrls);
       const markersCollection = collection(database, 'markers');
       await addDoc(markersCollection, {
         latitude: location.latitude,
@@ -383,8 +407,6 @@ const Inspire = ({ navigation }) => {
         description: description,
         category: category,
       });
-
-      console.log('Images uploaded and Firestore updated successfully.');
     } catch (error) {
       console.error('Error uploading images:', error);
       alert('There was an error uploading the images. Please try again later.');
@@ -405,27 +427,6 @@ const Inspire = ({ navigation }) => {
   function onMarkerPressed(imageURLs, coordinate, description) {
     navigation.navigate('ImageGalleryScreen', { imageURLs, coordinate, description });
   }
-
-  const getUserLocation = async () => {
-    try {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        alert('Permission to access location was denied');
-        return;
-      }
-
-      let location = await Location.getCurrentPositionAsync({});
-      setRegion({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        latitudeDelta: 0.1,
-        longitudeDelta: 0.1,
-      });
-    } catch (error) {
-      console.error('Error getting current location:', error);
-      alert('Error getting current location. Please try again later.');
-    }
-  };
 
   const handleDescriptionSubmit = (selectedCategory) => {
     setCategory(selectedCategory);
@@ -454,10 +455,16 @@ const Inspire = ({ navigation }) => {
             onPress={() => onMarkerPressed(marker.imageURLs, marker.coordinate, marker.description)}
           />
         ))}
+        {userLocation && (
+          <Marker
+            coordinate={userLocation}
+            title="My Location"
+            description="This is where you are"
+          >
+            <FontAwesome name="map-marker" size={40} color="#ff2600" />
+          </Marker>
+        )}
       </MapView>
-      <TouchableOpacity onPress={getUserLocation} style={styles.locationbutton}>
-        <Text style={styles.locationbuttonText}>Track My Location</Text>
-      </TouchableOpacity>
       <Modal
         animationType="slide"
         transparent={true}
@@ -498,6 +505,7 @@ const Inspire = ({ navigation }) => {
     </View>
   );
 };
+
 
 const ImageGalleryScreen = ({ route }) => {
   const { imageURLs = [], coordinate, description } = route.params;
@@ -576,7 +584,7 @@ const styles = StyleSheet.create({
     marginBottom: 55,
     marginTop: -9,
   },
-  inputFieldImage:{
+  inputFieldImage: {
     width: 300,
     height: 300,
     padding: 12,
@@ -617,32 +625,13 @@ const styles = StyleSheet.create({
     width: 300,
     height: 60,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   buttonText: {
     color: 'white',
     fontWeight: 'bold',
   },
-  buttonTextC: {
-    color: 'white',
-    fontWeight: 'bold',
-    width: '100%'
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    width: '100%',
-  },
-  categoryButton: {
-    backgroundColor: 'grey',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 5,
-    alignItems: 'center',
-    marginVertical: 5,
-    width: '48%',
-  },
-  descriptionText:{
+  descriptionText: {
     marginTop: 20,
   },
   descriptionTextImage: {
@@ -651,7 +640,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginVertical: 10,
   },
-  locationbutton: {
+  locationButton: {
     backgroundColor: '#D3D3D3',
     paddingVertical: 12,
     paddingHorizontal: 30,
@@ -662,8 +651,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     alignSelf: 'center',
   },
-  locationbuttonText: {
-    color: "white",
+  locationButtonText: {
+    color: 'white',
     marginBottom: 10,
     fontWeight: 'bold',
     alignItems: 'center',
