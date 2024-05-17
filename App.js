@@ -31,49 +31,41 @@ if (!getAuth(app)) {
 }
 
 const Header = () => {
-  const [modalVisible, setModalVisible] = useState(false);
-  const navigation = useNavigation();
-
-  const handleDoubleTap = () => {
-    setModalVisible(true);
-  };
-
-  const closeModal = () => {
-    setModalVisible(false);
-  };
-
-  async function handleSignOut() {
-    await signOut(auth);
-    navigation.navigate('JourneyJunctionScreen');
-    closeModal();
-  };
-
   return (
     <View style={styles.topContainer}>
-      <TouchableOpacity onPress={handleDoubleTap}>
         <Image source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/logo.png')} style={styles.logo} />
-      </TouchableOpacity>
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={closeModal}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalText}>Do you want to sign out?</Text>
-            <TouchableOpacity onPress={handleSignOut} style={styles.modalButton}>
-              <Text style={styles.buttonText}>Yes, sign out</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={closeModal} style={styles.modalButton}>
-              <Text style={styles.buttonText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 };
+
+const NavigationTab = () => {
+  const navigation = useNavigation();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      navigation.navigate('JourneyJunctionScreen');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
+  return (
+    <View style={styles.navigationTab}>
+      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.navButton}>
+        <FontAwesome name="arrow-left" size={24} color="gray" />
+        <Text style={styles.navButtonText}>Back</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={handleSignOut} style={styles.navButton}>
+        <FontAwesome name="sign-out" size={24} color="gray" />
+        <Text style={styles.navButtonText}>Sign Out</Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
+
+
 
 const JourneyJunctionScreen = ({ navigation }) => {
   return (
@@ -265,6 +257,7 @@ const Home = ({ navigation }) => {
           </TouchableOpacity>
         </View>
       </ImageBackground>
+      <NavigationTab />
     </SafeAreaView>
   );
 };
@@ -502,9 +495,11 @@ const Inspire = ({ navigation }) => {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+      <NavigationTab />
     </View>
   );
 };
+
 
 
 const ImageGalleryScreen = ({ route }) => {
@@ -544,6 +539,7 @@ const ImageGalleryScreen = ({ route }) => {
         )}
         <Text style={styles.descriptionText}>{description}</Text>
       </View>
+    
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         {imageURLs.map((url, index) => (
           <Image
@@ -553,9 +549,12 @@ const ImageGalleryScreen = ({ route }) => {
           />
         ))}
       </ScrollView>
+      <NavigationTab />
     </SafeAreaView>
   );
 };
+
+
 
 const App = () => {
   return (
@@ -580,8 +579,8 @@ const App = () => {
 const styles = StyleSheet.create({
   map: {
     width: '100%',
-    height: '74%',
-    marginBottom: 55,
+    height: '75%',
+    marginBottom: 0,
     marginTop: -9,
   },
   inputFieldImage: {
@@ -675,6 +674,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginVertical: 20,
     marginTop: 250,
+  },
+  navigationTab: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderColor: '#ccc',
+  },
+  navButton: {
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+  navButtonText: {
+    fontSize: 14,
+    color: 'gray',
+    marginTop: 5,
   },
   coordinatesText: {
     fontSize: 16,
