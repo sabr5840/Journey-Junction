@@ -845,6 +845,7 @@ const styles = StyleSheet.create({
   signUpText: {
     color: 'white',
   },
+  
   forgotPasswordText: {
     color: 'white',
   },
