@@ -246,7 +246,7 @@ const Home = ({ navigation }) => {
           <TouchableOpacity onPress={() => navigation.navigate('Inspire')} style={styles.loginButton}>
             <Text style={styles.loginButtonText}>Inspire others</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.loginButton}>
+          <TouchableOpacity onPress={() => navigation.navigate('Explore')} style={styles.loginButton}>
             <Text style={styles.loginButtonText}>Travel inspiration</Text>
           </TouchableOpacity>
         </View>
@@ -494,7 +494,6 @@ const Inspire = ({ navigation }) => {
   );
 };
 
-
 const ImageGalleryScreen = ({ route }) => {
   const { imageURLs = [], coordinate, description } = route.params;
   const [address, setAddress] = useState(null);
@@ -546,6 +545,128 @@ const ImageGalleryScreen = ({ route }) => {
   );
 };
 
+const Explore = () => {
+  const [markers, setMarkers] = useState([]);
+  const [region, setRegion] = useState(null);
+  const [userLocation, setUserLocation] = useState(null);
+  const mapRef = useRef(null);
+  const auth = getAuth();
+  const navigation = useNavigation();
+
+  useEffect(() => {
+    if (auth.currentUser) {
+      const markersCollection = collection(database, 'markers');
+      const unsubscribe = onSnapshot(markersCollection, (querySnapshot) => {
+        const newMarkers = [];
+        querySnapshot.forEach((doc) => {
+          const { latitude, longitude, description, category, imageURLs } = doc.data();
+          newMarkers.push({
+            coordinate: { latitude, longitude },
+            description,
+            category,
+            key: doc.id,
+            title: 'Great place',
+            imageURLs,
+          });
+        });
+        setMarkers(newMarkers);
+      });
+
+      return () => {
+        unsubscribe();
+      };
+    } else {
+      console.log('User is not authenticated. Cannot access Firestore.');
+    }
+  }, [auth.currentUser]);
+
+  useEffect(() => {
+    const startTracking = async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        alert('Permission to access location was denied');
+        return;
+      }
+
+      Location.watchPositionAsync({
+        accuracy: Location.Accuracy.High,
+        timeInterval: 10000,
+        distanceInterval: 10,
+      }, (location) => {
+        const { latitude, longitude } = location.coords;
+        setUserLocation({ latitude, longitude });
+        setRegion({
+          latitude,
+          longitude,
+          latitudeDelta: 10,
+          longitudeDelta: 10,
+        });
+      });
+    };
+
+    startTracking();
+  }, []);
+
+  if (!region) {
+    return null; // or a loading spinner
+  }
+
+  return (
+    <View style={[styles.container, { backgroundColor: 'white' }]}>
+      <Header />
+      <MapView
+        ref={mapRef}
+        style={styles.exploreMap} // Use exploreMap style
+        region={region}
+      >
+        {markers.map((marker) => (
+          <Marker
+            coordinate={marker.coordinate}
+            key={marker.key}
+            title={marker.title}
+            pinColor={
+              marker.category === 'hotel' ? 'blue' :
+              marker.category === 'restaurant' ? 'red' :
+              marker.category === 'nature' ? 'green' :
+              'orange'
+            }
+            onPress={() => navigation.navigate('ImageGalleryScreen', { imageURLs: marker.imageURLs, coordinate: marker.coordinate, description: marker.description })}
+          />
+        ))}
+        {userLocation && (
+          <Marker
+            coordinate={userLocation}
+            title="My Location"
+            description="This is where you are"
+          >
+            <FontAwesome name="map-marker" size={40} color="#ff2600" />
+          </Marker>
+        )}
+      </MapView>
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>Please zoom into a specific country or continent on the map to view markers.</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('MapMarkers')}>
+          <Text style={styles.footerText1}>What does the different pins mean? <Text style={styles.pressHere}>Press here</Text></Text>
+        </TouchableOpacity>
+      </View>
+      <NavigationTab />
+    </View>
+  );
+};
+
+
+const MapMarkers = () => {
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: 'white' }]}>
+        <Header> </Header>
+        <View style={styles.mapImage}>
+        <Image source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/mapMarkers.png')} style={styles.mapImage} />
+         </View>
+      <NavigationTab />
+    </SafeAreaView>
+  );
+}
+
 const App = () => {
   return (
     <NavigationContainer>
@@ -561,6 +682,10 @@ const App = () => {
         <Stack.Screen name="Home" component={Home} />
         <Stack.Screen name="Inspire" component={Inspire} />
         <Stack.Screen name="ImageGalleryScreen" component={ImageGalleryScreen} />
+        <Stack.Screen name="Explore" component={Explore} />
+        <Stack.Screen name="MapMarkers" component={MapMarkers} />
+
+
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -571,6 +696,45 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '73%',
     marginTop: 40,
+  },
+  exploreMap: {
+    width: '100%',
+    height: '60%',
+    marginTop: 40,
+    marginBottom: 37,
+  },
+  footer: {
+    padding: 10,
+    backgroundColor: '#fff',
+    borderColor: '#ccc',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 5,
+    marginTop: -35,
+  },
+  footerText: {
+    textAlign: 'center',
+    color: 'gray',
+    fontSize: 17,
+  },
+  footerText1:{
+    textAlign: 'center',
+    color: 'gray',
+    fontWeight: 'bold',
+    color: 'black',
+  },
+  mapImage:{
+    width: '90%', 
+    height: '80%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 17,
+    marginLeft: 15,
+  },
+  pressHere: {
+    color: '#0000ff',
+    textDecorationLine: 'underline',
+    color: 'black',
   },
   inputFieldImage: {
     width: 300,
@@ -837,5 +1001,7 @@ const styles = StyleSheet.create({
     color: 'white',
   },
 });
+
+
 
 export default App;
