@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { SafeAreaView, StyleSheet, View, Text, Image, TouchableOpacity, TouchableWithoutFeedback, TextInput, ImageBackground, Modal, KeyboardAvoidingView, ScrollView, Dimensions, Keyboard, Platform, Animated } from 'react-native';
+import { SafeAreaView, StyleSheet, View, Text, Image, TouchableOpacity, TouchableWithoutFeedback, TextInput, ImageBackground, Modal, KeyboardAvoidingView, ScrollView, Dimensions, Keyboard, Platform, Animated, Alert } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { app, database, storage } from './firebase';
 import { collection, addDoc, onSnapshot, setDoc, doc } from 'firebase/firestore';
@@ -402,7 +402,20 @@ const Inspire = ({ navigation }) => {
         if (!result.canceled) {
           console.log('Camera result:', result);
           capturedImages.push(result.assets[0].uri);
-          captureMore = false; // Set to true if you want to capture multiple images in a loop
+
+          const takeAnother = await new Promise((resolve) => {
+            Alert.alert(
+              'Take another picture?',
+              '',
+              [
+                { text: 'No', onPress: () => resolve(false) },
+                { text: 'Yes', onPress: () => resolve(true) },
+              ],
+              { cancelable: false }
+            );
+          });
+
+          captureMore = takeAnother;
         } else {
           captureMore = false;
         }
@@ -620,7 +633,6 @@ const Inspire = ({ navigation }) => {
     </View>
   );
 };
-
 
 const ImageGalleryScreen = ({ route }) => {
   const { imageURLs = [], coordinate, description } = route.params;
@@ -1180,7 +1192,5 @@ const styles = StyleSheet.create({
     height: 60,
   },
 });
-
-
 
 export default App;
