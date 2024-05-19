@@ -1,19 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { SafeAreaView, StyleSheet, View, Text, Image, TouchableOpacity, TouchableWithoutFeedback, TextInput, ImageBackground, Modal, KeyboardAvoidingView, FlatList, ScrollView, Dimensions, Keyboard } from 'react-native';
+import { SafeAreaView, StyleSheet, View, Text, Image, TouchableOpacity, TouchableWithoutFeedback, TextInput, ImageBackground, Modal, KeyboardAvoidingView, ScrollView, Dimensions, Keyboard, Platform, Animated } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { app, database, storage } from './firebase';
-import { collection, addDoc, onSnapshot, setDoc } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, setDoc, doc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword, initializeAuth, getReactNativePersistence } from "firebase/auth";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword, initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
-import FontAwesome from 'react-native-vector-icons/FontAwesome'; // Import FontAwesome
-
+import { Magnetometer } from 'expo-sensors';
+import FontAwesome from 'react-native-vector-icons/FontAwesome';
+import RNPickerSelect from 'react-native-picker-select';
 
 const Stack = createStackNavigator();
 let auth;
@@ -33,7 +33,38 @@ if (!getAuth(app)) {
 const Header = () => {
   return (
     <View style={styles.topContainer}>
-        <Image source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/logo.png')} style={styles.logo} />
+      <Image source={require('./assets/logo.png')} style={styles.logo} />
+    </View>
+  );
+};
+
+const Compass = () => {
+  const [magnetometerData, setMagnetometerData] = useState(null);
+
+  useEffect(() => {
+    Magnetometer.setUpdateInterval(1000);
+    const subscription = Magnetometer.addListener((data) => {
+      setMagnetometerData(data);
+    });
+
+    return () => subscription.remove();
+  }, []);
+
+  function calculateDirection(magnetometer) {
+    let angle = Math.atan2(magnetometer.y, magnetometer.x) * (180 / Math.PI);
+    if (angle < 0) {
+      angle = 360 + angle;
+    }
+    return angle;
+  }
+
+  const direction = magnetometerData ? calculateDirection(magnetometerData) : 0;
+
+  return (
+    <View style={styles.compassContainer}>
+      <Animated.View style={{ transform: [{ rotate: `${direction}deg` }] }}>
+        <Image source={require('./assets/compass.png')} style={styles.compassImage} />
+      </Animated.View>
     </View>
   );
 };
@@ -67,12 +98,12 @@ const NavigationTab = () => {
 const JourneyJunctionScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: 'white' }]}>
-      <ImageBackground source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/background.png')} style={styles.backgroundImage}>
-        <Header> </Header>
+      <ImageBackground source={require('./assets/background.png')} style={styles.backgroundImage}>
+        <Header />
         <Text style={styles.description}>
-        Welcome to JourneyJunction, your new go-to mobile platform for recording, discovering, 
-        and sharing travel experiences. Whether you're a seasoned explorer or a casual tourist, 
-        JourneyJunction helps you document your journey and connect with like-minded travelers.
+          Welcome to JourneyJunction, your new go-to mobile platform for recording, discovering, 
+          and sharing travel experiences. Whether you're a seasoned explorer or a casual tourist, 
+          JourneyJunction helps you document your journey and connect with like-minded travelers.
         </Text>
         <View style={styles.bottomContainer}>
           <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.button}>
@@ -117,9 +148,9 @@ const Login = () => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: 'white' }]}>
       <ImageBackground
-        source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/background.png')}
+        source={require('./assets/background.png')}
         style={styles.backgroundImage}>
-        <Header> </Header>
+        <Header />
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardAvoidingView}>
           <View style={styles.loginContainer}>
             <Text style={styles.loginTitle}>Log in</Text>
@@ -136,7 +167,6 @@ const Login = () => {
               secureTextEntry
               style={styles.inputField}
             />
-
             <TouchableOpacity onPress={login} style={styles.loginButton}>
               <Text style={styles.loginButtonText}>Log in</Text>
             </TouchableOpacity>
@@ -195,7 +225,7 @@ const Signup = () => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: 'white' }]}>
       <ImageBackground
-        source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/background.png')}
+        source={require('./assets/background.png')}
         style={styles.backgroundImage}>
         <Header />
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardAvoidingView}>
@@ -238,7 +268,7 @@ const Signup = () => {
 const Home = ({ navigation }) => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: 'white' }]}>
-      <ImageBackground source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/background.png')} style={styles.backgroundImage}>
+      <ImageBackground source={require('./assets/background.png')} style={styles.backgroundImage}>
         <Header />
         <View style={styles.indexContainer}>
           <Text style={styles.indexTitle}>What is your purpose today?</Text>
@@ -270,10 +300,12 @@ const Inspire = ({ navigation }) => {
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
   const [userLocation, setUserLocation] = useState(null);
+  const [imagePickerModalVisible, setImagePickerModalVisible] = useState(false);
   const mapRef = useRef(null);
-  const auth = getAuth();
+  const [magnetometerData, setMagnetometerData] = useState(null);
 
   useEffect(() => {
+    const auth = getAuth();
     if (auth.currentUser) {
       const markersCollection = collection(database, 'markers');
       const unsubscribe = onSnapshot(markersCollection, (querySnapshot) => {
@@ -286,7 +318,6 @@ const Inspire = ({ navigation }) => {
             description: description,
             category: category,
             key: doc.id,
-            title: 'Great place',
           });
         });
         setMarkers(newMarkers);
@@ -298,7 +329,7 @@ const Inspire = ({ navigation }) => {
     } else {
       console.log('User is not authenticated. Cannot access Firestore.');
     }
-  }, [auth.currentUser]);
+  }, [getAuth().currentUser]);
 
   useEffect(() => {
     const startTracking = async () => {
@@ -327,6 +358,15 @@ const Inspire = ({ navigation }) => {
     startTracking();
   }, []);
 
+  useEffect(() => {
+    Magnetometer.setUpdateInterval(1000);
+    const subscription = Magnetometer.addListener((data) => {
+      setMagnetometerData(data);
+    });
+
+    return () => subscription.remove();
+  }, []);
+
   async function selectImages(location) {
     try {
       let result = await ImagePicker.launchImageLibraryAsync({
@@ -347,12 +387,46 @@ const Inspire = ({ navigation }) => {
     }
   }
 
+  async function openCamera(location) {
+    try {
+      let capturedImages = [];
+      let captureMore = true;
+
+      while (captureMore) {
+        console.log('Opening camera...');
+        let result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 1,
+        });
+
+        if (!result.canceled) {
+          console.log('Camera result:', result);
+          capturedImages.push(result.assets[0].uri);
+          captureMore = false; // Set to true if you want to capture multiple images in a loop
+        } else {
+          captureMore = false;
+        }
+      }
+
+      if (capturedImages.length > 0) {
+        console.log('Captured images:', capturedImages);
+        setSelectedImages(capturedImages);
+        setCurrentLocation(location);
+        setDescriptionModalVisible(true);
+      }
+    } catch (error) {
+      console.error('Error opening camera:', error);
+      alert('There was an error opening the camera. Please try again later.');
+    }
+  }
+
   async function resizeImage(imageUri) {
     const manipResult = await ImageManipulator.manipulateAsync(
       imageUri,
       [{ resize: { width: 1000 } }],
       { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
     );
+    console.log('Image resized:', manipResult.uri);
     return manipResult.uri;
   }
 
@@ -365,6 +439,7 @@ const Inspire = ({ navigation }) => {
         const storageRef = ref(storage, 'images/' + imageName);
         await uploadBytes(storageRef, blob);
         const downloadURL = await getDownloadURL(storageRef);
+        console.log('Image uploaded successfully:', downloadURL);
         return downloadURL;
       } catch (error) {
         console.error(`Attempt ${attempt} failed:`, error);
@@ -375,6 +450,7 @@ const Inspire = ({ navigation }) => {
 
   async function uploadImages(imageUris, location, description, category) {
     try {
+      console.log('Uploading images:', imageUris);
       const uploadPromises = imageUris.map(async (imageUri, index) => {
         try {
           const resizedUri = await resizeImage(imageUri);
@@ -386,6 +462,7 @@ const Inspire = ({ navigation }) => {
       });
 
       const imageUrls = await Promise.all(uploadPromises);
+      console.log('All images uploaded successfully:', imageUrls);
       const markersCollection = collection(database, 'markers');
       await addDoc(markersCollection, {
         latitude: location.latitude,
@@ -394,6 +471,7 @@ const Inspire = ({ navigation }) => {
         description: description,
         category: category,
       });
+      console.log('Images and marker data uploaded to Firestore.');
     } catch (error) {
       console.error('Error uploading images:', error);
       alert('There was an error uploading the images. Please try again later.');
@@ -402,27 +480,42 @@ const Inspire = ({ navigation }) => {
 
   function addMarker(data) {
     const { latitude, longitude } = data.nativeEvent.coordinate;
-    const newMarker = {
-      coordinate: { latitude, longitude },
-      key: Date.now().toString(),
-      title: 'Great place',
-    };
-    setMarkers([...markers, newMarker]);
-    selectImages({ latitude, longitude });
+    setCurrentLocation({ latitude, longitude });
+    setImagePickerModalVisible(true);
+  }
+
+  async function addCurrentLocationMarker() {
+    try {
+      const { coords } = await Location.getCurrentPositionAsync({});
+      setCurrentLocation({ latitude: coords.latitude, longitude: coords.longitude });
+      setImagePickerModalVisible(true);
+    } catch (error) {
+      console.error('Error fetching current location:', error);
+      alert('There was an error fetching your current location. Please try again later.');
+    }
   }
 
   function onMarkerPressed(imageURLs, coordinate, description) {
     navigation.navigate('ImageGalleryScreen', { imageURLs, coordinate, description });
   }
 
-  const handleDescriptionSubmit = (selectedCategory) => {
-    setCategory(selectedCategory);
+  const handleDescriptionSubmit = () => {
     setDescriptionModalVisible(false);
     if (currentLocation && selectedImages.length > 0) {
-      uploadImages(selectedImages, currentLocation, description, selectedCategory);
+      uploadImages(selectedImages, currentLocation, description, category);
       Keyboard.dismiss();
     }
   };
+
+  function calculateDirection(magnetometer) {
+    let angle = Math.atan2(magnetometer.y, magnetometer.x) * (180 / Math.PI);
+    if (angle < 0) {
+      angle = 360 + angle;
+    }
+    return angle;
+  }
+
+  const direction = magnetometerData ? calculateDirection(magnetometerData) : 0;
 
   return (
     <View style={[styles.container, { backgroundColor: 'white' }]}>
@@ -434,10 +527,11 @@ const Inspire = ({ navigation }) => {
             key={marker.key}
             title={marker.title}
             pinColor={
-              marker.category === 'hotel' ? 'blue' :
-              marker.category === 'restaurant' ? 'red' :
-              marker.category === 'nature' ? 'green' :
-              'orange'
+              marker.category === 'hotel' ? 'black' :
+              marker.category === 'restaurant' ? 'blue' :
+              marker.category === 'nature' ? 'orange' :
+              marker.category === 'activity' ? 'green' :
+              'red'
             }
             onPress={() => onMarkerPressed(marker.imageURLs, marker.coordinate, marker.description)}
           />
@@ -452,6 +546,34 @@ const Inspire = ({ navigation }) => {
           </Marker>
         )}
       </MapView>
+      <TouchableOpacity onPress={addCurrentLocationMarker} style={styles.locationButton}>
+        <Text style={styles.locationButtonText}>Add Marker at My Location</Text>
+      </TouchableOpacity>
+      <View style={styles.compassContainer}>
+        <Animated.View style={{ transform: [{ rotate: `${direction}deg` }] }}>
+          <Image source={require('./assets/compass.png')} style={styles.compassImage} />
+        </Animated.View>
+      </View>
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={imagePickerModalVisible}
+        onRequestClose={() => setImagePickerModalVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalText}>Select Image Source</Text>
+              <TouchableOpacity onPress={() => { setImagePickerModalVisible(false); openCamera(currentLocation); }} style={styles.modalButton}>
+                <Text style={styles.buttonTextA}>Open Camera</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { setImagePickerModalVisible(false); selectImages(currentLocation); }} style={styles.modalButton}>
+                <Text style={styles.buttonTextA}>Select from Gallery</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
       <Modal
         animationType="slide"
         transparent={true}
@@ -471,18 +593,23 @@ const Inspire = ({ navigation }) => {
                   multiline
                 />
               </ScrollView>
-              <View style={styles.buttonContainer}>
-                <TouchableOpacity onPress={() => handleDescriptionSubmit('hotel')} style={styles.categoryButton}>
-                  <Text style={styles.buttonTextC}>Submit as Hotel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => handleDescriptionSubmit('restaurant')} style={styles.categoryButton}>
-                  <Text style={styles.buttonTextC}>Submit as Restaurant</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => handleDescriptionSubmit('activity')} style={styles.categoryButton}>
-                  <Text style={styles.buttonTextC}>Submit as Activity</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => handleDescriptionSubmit('nature')} style={styles.categoryButton}>
-                  <Text style={styles.buttonTextC}>Submit as Nature Site</Text>
+              <View style={styles.pickerContainer}>
+                <RNPickerSelect
+                  onValueChange={(value) => setCategory(value)}
+                  items={[
+                    { label: 'Hotel', value: 'hotel' },
+                    { label: 'Restaurant', value: 'restaurant' },
+                    { label: 'Activity', value: 'activity' },
+                    { label: 'Nature Site', value: 'nature' },
+                  ]}
+                  placeholder={{ label: "Select a category", value: null }}
+                  style={pickerSelectStyles}
+                />
+                <TouchableOpacity
+                  onPress={handleDescriptionSubmit}
+                  style={styles.submitButton}
+                >
+                  <Text style={styles.buttonTextC}>Submit</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -493,6 +620,7 @@ const Inspire = ({ navigation }) => {
     </View>
   );
 };
+
 
 const ImageGalleryScreen = ({ route }) => {
   const { imageURLs = [], coordinate, description } = route.params;
@@ -506,7 +634,8 @@ const ImageGalleryScreen = ({ route }) => {
           latitude: coordinate.latitude,
           longitude: coordinate.longitude
         });
-        setAddress(result);
+        let detailedAddress = `${result.name ? result.name + ', ' : ''}${result.street}, ${result.city}, ${result.region}, ${result.postalCode}, ${result.country}`;
+        setAddress(detailedAddress);
       } catch (error) {
         console.error('Error fetching address:', error);
       }
@@ -519,9 +648,7 @@ const ImageGalleryScreen = ({ route }) => {
     <SafeAreaView style={styles.galleryContainer}>
       <View style={styles.coordinatesContainer}>
         {address ? (
-          <>
-            <Text style={styles.coordinatesText}>{address.street}, {address.city}, {address.region}, {address.postalCode}, {address.country}</Text>
-          </>
+          <Text style={styles.coordinatesText}>{address}</Text>
         ) : (
           <>
             <Text style={styles.coordinatesText}>Latitude: {coordinate.latitude.toFixed(6)}</Text>
@@ -552,6 +679,7 @@ const Explore = () => {
   const mapRef = useRef(null);
   const auth = getAuth();
   const navigation = useNavigation();
+  const [magnetometerData, setMagnetometerData] = useState(null);
 
   useEffect(() => {
     if (auth.currentUser) {
@@ -607,9 +735,28 @@ const Explore = () => {
     startTracking();
   }, []);
 
+  useEffect(() => {
+    Magnetometer.setUpdateInterval(1000);
+    const subscription = Magnetometer.addListener((data) => {
+      setMagnetometerData(data);
+    });
+
+    return () => subscription.remove();
+  }, []);
+
   if (!region) {
     return null; // or a loading spinner
   }
+
+  function calculateDirection(magnetometer) {
+    let angle = Math.atan2(magnetometer.y, magnetometer.x) * (180 / Math.PI);
+    if (angle < 0) {
+      angle = 360 + angle;
+    }
+    return angle;
+  }
+
+  const direction = magnetometerData ? calculateDirection(magnetometerData) : 0;
 
   return (
     <View style={[styles.container, { backgroundColor: 'white' }]}>
@@ -625,10 +772,11 @@ const Explore = () => {
             key={marker.key}
             title={marker.title}
             pinColor={
-              marker.category === 'hotel' ? 'blue' :
-              marker.category === 'restaurant' ? 'red' :
-              marker.category === 'nature' ? 'green' :
-              'orange'
+              marker.category === 'hotel' ? 'black' :
+              marker.category === 'restaurant' ? 'blue' :
+              marker.category === 'nature' ? 'orange' :
+              marker.category === 'activity' ? 'green' :
+              'red'
             }
             onPress={() => navigation.navigate('ImageGalleryScreen', { imageURLs: marker.imageURLs, coordinate: marker.coordinate, description: marker.description })}
           />
@@ -649,6 +797,11 @@ const Explore = () => {
           <Text style={styles.footerText1}>What does the different pins mean? <Text style={styles.pressHere}>Press here</Text></Text>
         </TouchableOpacity>
       </View>
+      <View style={styles.compassContainer}>
+        <Animated.View style={{ transform: [{ rotate: `${direction}deg` }] }}>
+          <Image source={require('./assets/compass.png')} style={styles.compassImage} />
+        </Animated.View>
+      </View>
       <NavigationTab />
     </View>
   );
@@ -658,10 +811,10 @@ const Explore = () => {
 const MapMarkers = () => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: 'white' }]}>
-        <Header> </Header>
-        <View style={styles.mapImage}>
-        <Image source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/mapMarkers.png')} style={styles.mapImage} />
-         </View>
+      <Header />
+      <View style={styles.mapImage}>
+        <Image source={require('./assets/mapMarkers.png')} style={styles.mapImage} />
+      </View>
       <NavigationTab />
     </SafeAreaView>
   );
@@ -684,8 +837,6 @@ const App = () => {
         <Stack.Screen name="ImageGalleryScreen" component={ImageGalleryScreen} />
         <Stack.Screen name="Explore" component={Explore} />
         <Stack.Screen name="MapMarkers" component={MapMarkers} />
-
-
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -696,6 +847,11 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '73%',
     marginTop: 40,
+  },
+  pickerContainer: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: -5,
   },
   exploreMap: {
     width: '100%',
@@ -717,14 +873,14 @@ const styles = StyleSheet.create({
     color: 'gray',
     fontSize: 17,
   },
-  footerText1:{
+  footerText1: {
     textAlign: 'center',
     color: 'gray',
     fontWeight: 'bold',
     color: 'black',
   },
-  mapImage:{
-    width: '90%', 
+  mapImage: {
+    width: '90%',
     height: '80%',
     alignItems: 'center',
     justifyContent: 'center',
@@ -800,14 +956,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     position: 'absolute',
     bottom: 20,
-    marginBottom: 10,
     alignSelf: 'center',
+    marginBottom: 60,
+  },
+  submitButton:{
+    backgroundColor: '#D3D3D3',
+    width: '90%',
+    height: 40,
+    borderRadius: 10,
+  },
+  buttonTextC:{
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginTop: 10,
+    fontWeight: 'bold',
+    color: 'white',
   },
   locationButtonText: {
     color: 'white',
-    marginBottom: 10,
     fontWeight: 'bold',
-    alignItems: 'center',
   },
   galleryContainer: {
     flex: 1,
@@ -884,7 +1051,6 @@ const styles = StyleSheet.create({
     marginBottom: 185,
     paddingTop: 60,
     paddingBottom: 20,
-   
   },
   backgroundImage: {
     flex: 1,
@@ -898,7 +1064,6 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     marginTop: 10,
   },
-
   logo: {
     width: 350,
     height: 350,
@@ -941,6 +1106,9 @@ const styles = StyleSheet.create({
     marginBottom: 220,
     paddingTop: 30,
     paddingBottom: 30,
+  },
+  buttonTextA:{
+    marginBottom: 0,
 
   },
   signUpContainer: {
@@ -955,7 +1123,6 @@ const styles = StyleSheet.create({
     paddingTop: 30,
     paddingBottom: 30,
   },
-
   loginTitle: {
     fontSize: 35,
     fontWeight: 'bold',
@@ -996,9 +1163,21 @@ const styles = StyleSheet.create({
   signUpText: {
     color: 'white',
   },
-  
   forgotPasswordText: {
     color: 'white',
+  },
+  compassContainer: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    padding: 10,
+    borderRadius: 5,
+    marginTop: 115,
+    marginRight: -10,
+  },
+  compassImage: {
+    width: 60,
+    height: 60,
   },
 });
 
