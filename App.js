@@ -64,19 +64,15 @@ const NavigationTab = () => {
   );
 };
 
-
-
-
 const JourneyJunctionScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: 'white' }]}>
       <ImageBackground source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/background.png')} style={styles.backgroundImage}>
-        <Header />
+        <Header> </Header>
         <Text style={styles.description}>
-          Welcome to JourneyJunction, your new go-to mobile platform designed to transform the way you record,
-          discover, and share your travel experiences. Whether you're a seasoned explorer or a casual tourist,
-          JourneyJunction offers an enriching platform to document every step of your journey and connect with a
-          community of like-minded travelers.
+        Welcome to JourneyJunction, your new go-to mobile platform for recording, discovering, 
+        and sharing travel experiences. Whether you're a seasoned explorer or a casual tourist, 
+        JourneyJunction helps you document your journey and connect with like-minded travelers.
         </Text>
         <View style={styles.bottomContainer}>
           <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.button}>
@@ -123,12 +119,12 @@ const Login = () => {
       <ImageBackground
         source={require('/Users/sabrinahammerichebbesen/Desktop/Developer/4. semester/Mobile Development/eksamen/rejseApp/assets/background.png')}
         style={styles.backgroundImage}>
-        <Header />
+        <Header> </Header>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardAvoidingView}>
           <View style={styles.loginContainer}>
             <Text style={styles.loginTitle}>Log in</Text>
             <TextInput
-              placeholder="Email or phone"
+              placeholder="Email"
               value={enteredEmail}
               onChangeText={setEnteredEmail}
               style={styles.inputField}
@@ -140,9 +136,7 @@ const Login = () => {
               secureTextEntry
               style={styles.inputField}
             />
-            <TouchableOpacity onPress={() => console.log('Forgot Password')}>
-              <Text style={styles.forgotPasswordText}>Forgot password?</Text>
-            </TouchableOpacity>
+
             <TouchableOpacity onPress={login} style={styles.loginButton}>
               <Text style={styles.loginButtonText}>Log in</Text>
             </TouchableOpacity>
@@ -205,7 +199,7 @@ const Signup = () => {
         style={styles.backgroundImage}>
         <Header />
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardAvoidingView}>
-          <View style={styles.loginContainer}>
+          <View style={styles.signUpContainer}>
             <Text style={styles.loginTitle}>Sign up</Text>
             <TextInput
               placeholder="Full name"
@@ -214,7 +208,7 @@ const Signup = () => {
               style={styles.inputField}
             />
             <TextInput
-              placeholder="Email or phone"
+              placeholder="Email"
               value={enteredEmail}
               onChangeText={setEnteredEmail}
               style={styles.inputField}
@@ -267,15 +261,15 @@ const Inspire = ({ navigation }) => {
   const [region, setRegion] = useState({
     latitude: 55,
     longitude: 12,
-    latitudeDelta: 20,
-    longitudeDelta: 20,
+    latitudeDelta: 0.1,
+    longitudeDelta: 0.1,
   });
   const [selectedImages, setSelectedImages] = useState([]);
   const [descriptionModalVisible, setDescriptionModalVisible] = useState(false);
   const [currentLocation, setCurrentLocation] = useState(null);
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
-  const [userLocation, setUserLocation] = useState(null); // State to store user location
+  const [userLocation, setUserLocation] = useState(null);
   const mapRef = useRef(null);
   const auth = getAuth();
 
@@ -304,7 +298,7 @@ const Inspire = ({ navigation }) => {
     } else {
       console.log('User is not authenticated. Cannot access Firestore.');
     }
-  }, []);
+  }, [auth.currentUser]);
 
   useEffect(() => {
     const startTracking = async () => {
@@ -316,8 +310,8 @@ const Inspire = ({ navigation }) => {
 
       Location.watchPositionAsync({
         accuracy: Location.Accuracy.High,
-        timeInterval: 10000, // Update every 10 seconds
-        distanceInterval: 10, // Update every 10 meters
+        timeInterval: 10000,
+        distanceInterval: 10,
       }, (location) => {
         const { latitude, longitude } = location.coords;
         setUserLocation({ latitude, longitude });
@@ -501,7 +495,6 @@ const Inspire = ({ navigation }) => {
 };
 
 
-
 const ImageGalleryScreen = ({ route }) => {
   const { imageURLs = [], coordinate, description } = route.params;
   const [address, setAddress] = useState(null);
@@ -525,7 +518,6 @@ const ImageGalleryScreen = ({ route }) => {
 
   return (
     <SafeAreaView style={styles.galleryContainer}>
-      <Header />
       <View style={styles.coordinatesContainer}>
         {address ? (
           <>
@@ -554,8 +546,6 @@ const ImageGalleryScreen = ({ route }) => {
   );
 };
 
-
-
 const App = () => {
   return (
     <NavigationContainer>
@@ -579,9 +569,8 @@ const App = () => {
 const styles = StyleSheet.create({
   map: {
     width: '100%',
-    height: '75%',
-    marginBottom: 0,
-    marginTop: -9,
+    height: '73%',
+    marginTop: 40,
   },
   inputFieldImage: {
     width: 300,
@@ -673,7 +662,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 10,
     alignItems: 'center',
     marginVertical: 20,
-    marginTop: 250,
+    marginTop: 200,
   },
   navigationTab: {
     flexDirection: 'row',
@@ -728,15 +717,10 @@ const styles = StyleSheet.create({
     width: '90%',
     alignSelf: 'center',
     alignItems: 'center',
-    marginTop: 0,
-    marginBottom: 300,
+    marginBottom: 185,
     paddingTop: 60,
     paddingBottom: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    shadowOffset: { height: 5 },
-    elevation: 10,
+   
   },
   backgroundImage: {
     flex: 1,
@@ -747,30 +731,24 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 20,
+    paddingTop: 50,
     marginTop: 10,
   },
-  topContainerS: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingTop: 20,
-    marginTop: 7,
-  },
+
   logo: {
     width: 350,
     height: 350,
     resizeMode: 'contain',
   },
   description: {
-    fontSize: 16,
+    fontSize: 14,
     padding: 20,
     fontStyle: 'italic',
     flex: 2,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
-    marginTop: -80,
+    marginTop: -70,
   },
   bottomContainer: {
     flex: 1,
@@ -781,7 +759,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     padding: 20,
     color: '#000',
-    marginBottom: 120,
+    marginBottom: 70,
     fontStyle: 'italic',
   },
   boldText: {
@@ -795,16 +773,25 @@ const styles = StyleSheet.create({
     width: '90%',
     alignSelf: 'center',
     alignItems: 'center',
-    marginTop: -5,
-    marginBottom: 300,
-    paddingTop: 60,
-    paddingBottom: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    shadowOffset: { height: 5 },
-    elevation: 10,
+    marginTop: 0,
+    marginBottom: 220,
+    paddingTop: 30,
+    paddingBottom: 30,
+
   },
+  signUpContainer: {
+    backgroundColor: 'rgba(215, 213, 213, 0.7)',
+    borderRadius: 10,
+    padding: 16,
+    width: '90%',
+    alignSelf: 'center',
+    alignItems: 'center',
+    marginTop: 0,
+    marginBottom: 158,
+    paddingTop: 30,
+    paddingBottom: 30,
+  },
+
   loginTitle: {
     fontSize: 35,
     fontWeight: 'bold',
